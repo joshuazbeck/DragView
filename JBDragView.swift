@@ -1,10 +1,8 @@
-//
-//  DragViewController.swift
-//  APlusCard
-//
-//  Created by Beck Fam on 1/29/19.
-//  Copyright © 2019 APlusCardTexas. All rights reserved.
-//
+//  DragView.swift
+//  Josh Beck Studios
+//  Originally created by Josh Beck on 1/29/19.
+//  Copyright © 2021 Joshua Beck. All rights reserved.
+//  Available under the MIT License.  Any modification and redistribution is allowed as long as it includes this header
 
 import UIKit
 
@@ -63,16 +61,11 @@ class DragView: UIView {
         //Set anchor afterwards so we can access the previous anchor point
         currentAnchorSide = .Down
     }
-    ///This method sets the distance required to drag the view before it snaps to the bottom or top of view.  This is called defaultly and only needs to be overriden if a custom value is required
-    /// - Warning: Only call method after the view has moved to the superview.  Otherwise, the custom value will be overwritten
-    public func setAllowedDragDistance(dragDistance: CGFloat){
-        allowedDragDistance = dragDistance
-    }
+    ///Setup the DragView
     override func didMoveToSuperview() {
         super.didMoveToSuperview()
         //Set the default drag distance
-        setAllowedDragDistance(dragDistance: parentView.frame.size.height/5.5)
-        self.backgroundColor = .cyan
+        allowedDragDistance = parentView.frame.size.height/5.5
         //Set the view to the corrosponding anchor side
         if currentAnchorSide == .Up{
             snapToTop()
@@ -92,14 +85,14 @@ class DragView: UIView {
     
     ///The amount of the view that should be visible from the bottom of the reference view (parent view).  Think of this amount pertaining to how much of the view should "peak up" from the bottom
     /// - Warning: Modifying the x/y values of the view from (0,0) will offset the bottom cushion by said amount
-    var cushionFromBottom = CGFloat()
+    public var cushionFromBottom = CGFloat()
     
     ///The current offset in the y axis of the view
     private var offsetY = CGFloat()
     
     ///The amount of the space that should be between the view from the top of the reference view (parent view).  Think of this amount pertaining to how much of the view should "peak up" from the bottom
     /// - Warning: Modifying the x/y values of the view from (0,0) will offset the top cushion by said amount
-    var cushionFromTop = CGFloat()
+    public var cushionFromTop = CGFloat()
     init(frame: CGRect, parentView: UIView, cushionFromBottom: CGFloat, cushionFromTop: CGFloat) {
         super.init(frame: frame)
         self.cushionFromBottom = cushionFromBottom
@@ -207,69 +200,88 @@ class DragView: UIView {
        
         
     }
-    ///Set current
-    var currentAnchorSide = Direction.Down
-    var allowedDragDistance = CGFloat()
-    var offsetFromTop: CGFloat = 0
-    var offsetFromBottom: CGFloat = 0
-    //Set in view did load
+    ///Set current anchor side to either up or down [default = .Down]
+    public var currentAnchorSide = Direction.Down
+    
+    ///This property holds  the distance required to drag the view before it snaps to the bottom or top of view.  This is set defaultly and only needs to be overriden if a custom value is required
+    /// - Warning: Only set this property after the view has moved to the superview.  Otherwise, the custom value will be overwritten
+    public var allowedDragDistance = CGFloat()
+    
+    ///This property holds the current offset from top as set from the touches moved/began method
+    private var offsetFromTop: CGFloat = 0
+    ///This property holds the current offset from bottom as set from the touches moved/began method
+    private var offsetFromBottom: CGFloat = 0
+    
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
        
-        //Resets offsetFromTop each new touch
-        
-        var location = touches.first!.location(in: parentView)
-        touchBeginWPosition(location: location)
+        //Set the initial position
+        touchBeginWPosition(location: touches.first!.location(in: parentView))
     }
+    
+    ///This method handles setting the appropriate values upon a first touch
     func touchBeginWPosition(location: CGPoint){
+        //Reset offset from top to a 0
          offsetFromTop = 0
+        
+        //If the touch is within the frame
         if self.frame.contains(location){
             
             //Set offset so that view will not instantaneously snap to new position.  It sets it so that the touchesMoved location.y is reduced by offset virtually setting the touch as starting at the top of the view.
-            var topOfView = self.center.y - self.frame.size.height/2
+            let topOfView = self.center.y - self.frame.size.height/2
             offsetFromTop = location.y - topOfView
-            print(offsetFromTop)
-            //Positive value
             
             continueMonitoringPan = true
         } else {
-            
+            //The touch is not within the DragView so stop monitoring pan.  It doesn't matter
             continueMonitoringPan = false
         }
     }
-    var reachedTop: (() -> Void) = {
+    
+    ///This property can be set to a non-default value to run code upon reaching the end of the upward snap animation (aka. whenever the drag view is settled at the top)
+    public var reachedTop: (() -> Void) = {
         
     }
-    var reachedBottom: (() -> Void) = {
+    
+    ///This property can be set to a non-default value to run code upon reaching the end of the downward snap animation (aka. whenever the drag view is settled at the bottom)
+    public var reachedBottom: (() -> Void) = {
         
     }
     
     override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
        super.touchesMoved(touches, with: event)
-        var locOfTouch = touches.first!.location(in: parentView)
+        let locOfTouch = touches.first!.location(in: parentView)
         touchMovedWPosition(loc: locOfTouch)
     }
-    func touchMovedWPosition(loc locOfTouch: CGPoint){
+    
+    ///This method modifies all necessary values whenever a touch is being dragged across the screen
+    private func touchMovedWPosition(loc locOfTouch: CGPoint){
+        
+        //If we should continue to monitor the pan (it is within the bounds of the drag view
         if continueMonitoringPan == true {
             
-            var transposedPosition = CGPoint(x: locOfTouch.x, y: locOfTouch.y - offsetFromTop)
-            var needToSnap = Bool()
-            //Placehold for a value set but globably accessable
+            //Find the y location offset by the distance necessary from the top
+            let transposedPosition = CGPoint(x: locOfTouch.x, y: locOfTouch.y - offsetFromTop)
+            
+            //Store whether the view should snap down/up
+            var needToSnap = false
+            
+           //If the current anchor side is down
             if currentAnchorSide == .Down{
-                //Begin to move up if possible
                 
+                //Determine if a snap downwards is warrented
+                //MARK: Customize the pull here to make the snap downward more sensitive appart from the snap upwards (change the 1.7)
                 needToSnap = calculatePosition(position: transposedPosition, pull: 1.7, snapSensitivity: allowedDragDistance, direction: .Down)
+                
                 //Also runs the calculate position block so the view is moved whether or not the timeToSnap variable is accessed
                 if needToSnap {
                     continueMonitoringPan = false
                     snapToTop()
                     currentAnchorSide = .Up
-                    
                 }
             } else {
-                //Begin to move down if possible
                 
-                
-                //Transposed position of touch so that it begins at top of view when passed regardless of where touch begins in view
+                //Determine if a snap upwards is warrented
+                //MARK: Customize the pull here to make the snap upwards more sensitive appart from the snap downwards (change the 1.7)
                 needToSnap = calculatePosition(position: transposedPosition, pull: 1.7, snapSensitivity: allowedDragDistance, direction: .Up)
                 
                 //Also runs the calculate position block so the view is moved whether or not the timeToSnap variable is accessed
@@ -283,56 +295,61 @@ class DragView: UIView {
             
         }
     }
+    
     override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
         super.touchesEnded(touches, with: event)
         let locOfTouch = touches.first!.location(in: parentView)
          touchEndWPosition(locOfTouch: locOfTouch)
-//        snap(to: CGPoint(x: self.view.frame.size.width/2, y: self.containerView.frame.size.height/2))
     }
-    func touchEndWPosition(locOfTouch: CGPoint){
+    
+    ///Private method handle resetting all values at the end of a drag/tap sequence
+    private func touchEndWPosition(locOfTouch: CGPoint){
         if continueMonitoringPan == true {
-            print("touchesEnded")
-          
+            //Find the transposed position to determine if a snap is necessary
             let transposedPosition = CGPoint(x: locOfTouch.x, y: locOfTouch.y - offsetFromTop)
             
+            //Determine if a snap is necessary
             let needToSnap = calculatePosition(position: transposedPosition, pull: 1.7, snapSensitivity: allowedDragDistance, direction: currentAnchorSide)
-            print(currentAnchorSide)
+            
             if currentAnchorSide == .Down {
+                
                 if needToSnap {
                     
                     //Snap to up position
                     snapToTop()
                     
-                    currentAnchorSide = .Up
-                    print("Now view is achored to the top")
                     //Toggle anchor side
+                    currentAnchorSide = .Up
                 } else {
+                    
                     //Snap back to initial start position
                     snapToBottom()
-                    currentAnchorSide = .Down
-                    print("Now the view is anchored to the bottom")
+                    
                     //Toggle anchor side
+                    currentAnchorSide = .Down
                 }
+                
             } else if currentAnchorSide == .Up{
+                
                 if needToSnap {
                     
                     //Snap to up position
                     snapToBottom()
                     
-                    currentAnchorSide = .Down
-                    print("Now view is achored to the bottom")
                     //Toggle anchor side
+                    currentAnchorSide = .Down
+                   
                 } else {
                     
                     //Snap back to initial start position
                     snapToTop()
-                    currentAnchorSide = .Up
-                    print("Now the view is anchored to the top")
+                    
                     //Toggle anchor side
+                    currentAnchorSide = .Up
+                  
                 }
+                
             }
         }
     }
-
-
 }
